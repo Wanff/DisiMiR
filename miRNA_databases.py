@@ -21,9 +21,12 @@ def get_HMDD_disease_associated_db(disease, path = 'miRNA_databases/HMDD3_associ
     associated = pd.read_csv(path, sep='\t', encoding= 'unicode_escape')
 
     associated_miRNA = associated[["mir", "disease"]]
-    disease_associated = associated_miRNA[associated_miRNA['disease'] == disease].drop_duplicates()
+
+    disease_associated_ = []
+    for dis in disease:
+        disease_associated_.append(associated_miRNA[associated_miRNA['disease'] == dis])
     
-    return disease_associated
+    return pd.concat(disease_associated_).drop_duplicates()
 
 def get_miRNA_conservation(miRNA_names, path = "miRNA_databases/"):
     mirna_fam_map = pd.read_csv(path + "mirna_2_prefam.txt", sep="\t", header=None)

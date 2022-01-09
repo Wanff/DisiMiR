@@ -6,6 +6,6 @@ hillclimbing.py
 config.py
 test.py
 aggregate_model.py
-utils.py
 cancer_aggregate_model
 cancer_pretrained_model.pickle
+notes.txt

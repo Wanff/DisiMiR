@@ -34,7 +34,7 @@ class Graph:
 
         return coverage
     
-    #other influence inference algorithms
+    #other, deprecated influence inference algorithms
     # def firstChildrenCoverage(self, S):
     #     coverage = 0
 

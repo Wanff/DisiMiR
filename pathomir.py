@@ -3,9 +3,11 @@ import numpy as np
 from tqdm import tqdm
 import re
 from datetime import datetime
-from sklearn.model_selection import KFold
 from matplotlib import pyplot as plt
-from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.metrics import roc_auc_score, roc_curve, confusion_matrix
+from scipy.stats import hypergeom
+from scipy import stats
+from confidence_intervals import delong_roc_variance
 import networkx as nx
 import pickle 
 import argparse
@@ -52,28 +54,18 @@ def create_miRNA_data(HMDD_disease_name, miRNA_graph, disspec_miRNA_graph, key_t
         no_p_mir = re.sub('(-5p|-3p|.3p|.5p)$', '', mir)
         miRNAs['Conservation'].append(conservation_score[no_p_mir])
 
-        is_mir_causal = 'yes' in HMDD_causal_db.loc[(HMDD_causal_db['mir'] == no_p_mir) & (HMDD_causal_db['disease'] == HMDD_disease_name), :].causality.unique()
+        is_mir_causal = 'yes' in HMDD_causal_db[HMDD_causal_db['disease'].isin(HMDD_disease_name)].loc[(HMDD_causal_db['mir'] == no_p_mir),:].causality.unique()
+        # is_mir_causal = 'yes' in HMDD_causal_db.loc[(HMDD_causal_db['mir'] == no_p_mir) & (HMDD_causal_db['disease'] in HMDD_disease_name), :].causality.unique()
         miRNAs['Causality'].append(is_mir_causal)
         
     return miRNAs
 
 def print_results_dict(results_dict):
-    print(" AUC: " + str(np.round_(results_dict["auc"], 3)))
-    print(" AUC STD: " + str(np.round_(results_dict["auc_std"],3)))
-    print(" AUC MEDIAN: " + str(np.round_(results_dict["median_auc"],3)))
-    print("\n")
-    print(" CM: " + str(np.round_(results_dict["CM"],3)))
-    print(" CM STD: " + str(np.round_(results_dict["CM STD"],3)))
-    print("\n")
-    print(" P_VALUE: " + str(results_dict["average_p_val"]))
-    print(" P_VALUE STD: " + str(results_dict["p_val_std"]))
-    print(" WORST P_VALUE (MAX): " + str(results_dict["max p_val"]))
-    print(" BEST P_VALUE (MIN): " + str(results_dict["min p_val"]))
-    print("\n")
-    print(" Feature Importances: " + str(np.round_(results_dict["feat_imps"],3)))
-    print(" Feature Importances STD: " + str(np.round_(results_dict["feat_imps_std"],3)))
-    print("\n")
-    print(results_dict["mir_false_pos_ratio"])
+    for metric in results_dict.keys():
+        if "p_val" not in metric:
+            print(metric + ": " + str(np.round_(results_dict[metric], 3)))
+        else:
+            print(metric + ": " + str(results_dict[metric]))
 
 def pipeline(args, random_state = None, return_value = None):
     # folder, return_value = "hc", random_state = None, 
@@ -136,14 +128,14 @@ def pipeline(args, random_state = None, return_value = None):
         else:
             miRNA_data.to_csv(os.getcwd() + "/" + args.run_identifier + "_source_to_target_network.csv")
     elif return_value == "all":
-        rocauc, CM, p_value, feature_importances, false_positives, positives_in_test, predictions, optimal_cutoff = predict_disease_causality(X_train, X_test, y_train, y_test, miRNA_data = miRNA_data, use_pretrained_model = args.use_pretrained_model,return_value = "all")
-        return rocauc, CM, p_value, feature_importances, false_positives, positives_in_test, predictions, key_to_miRNA_name_dict, optimal_cutoff
+        rocauc, CM, p_value, feature_importances, false_positives, predictions, optimal_cutoff = predict_disease_causality(X_train, X_test, y_train, y_test, miRNA_data = miRNA_data, use_pretrained_model = args.use_pretrained_model,return_value = "all")
+        return rocauc, CM, p_value, feature_importances, false_positives, predictions, key_to_miRNA_name_dict, optimal_cutoff
 
 def main(args):
     if args.run_type == "all":
         results_dict = {}
 
-        random_states = np.random.randint(1000, size = (101))
+        random_states = np.random.randint(1000, size = (100))
 
         rocaucs = []
         CMs = []
@@ -155,19 +147,13 @@ def main(args):
         predictions_dict = {}
 
         for random_state in tqdm(random_states):
-            rocauc, CM, p_value, feature_importances, false_positives, positives_in_test, predictions, key_to_miRNA_name_dict, optimal_cutoff = pipeline(args, 
+            rocauc, CM, p_value, feature_importances, false_positives, predictions, key_to_miRNA_name_dict, optimal_cutoff = pipeline(args, 
                             return_value = "all", random_state = random_state)
          
             rocaucs.append(rocauc)
             CMs.append(CM)
             p_values.append(p_value)
             feature_importances_list.append(feature_importances)
-
-            for mir in positives_in_test:
-                if mir in mir_num_test_dict.keys():
-                    mir_num_test_dict[mir] += 1
-                else:
-                    mir_num_test_dict[mir] = 1
             
             for mir in false_positives:
                 if mir in mir_num_false_pos_dict.keys():
@@ -189,7 +175,7 @@ def main(args):
         predictions_csv = {
             "miRNAs": [],
             "Average_Prob": [],
-            "Prediction with " + str(optimal_cutoff) + " Threshold": [],
+            "Class_Prediction": [],
             "HMDD_Class": []
         }
         for mir in predictions_dict.keys():
@@ -197,8 +183,31 @@ def main(args):
             average_prob = predictions_dict[mir]["summed_preds"] / predictions_dict[mir]["times_in_test"]
             predictions_csv["Average_Prob"].append(average_prob)
             predictions_csv["HMDD_Class"].append(predictions_dict[mir]["class"])
-            predictions_csv["Prediction with " + str(optimal_cutoff) + " Threshold"].append(True if average_prob > optimal_cutoff else False)
+            predictions_csv["Class_Prediction"].append(True if average_prob > optimal_cutoff else False)
 
+        predictions_csv = pd.DataFrame(predictions_csv)
+        
+        #AVERAGE PREDICTION METRICS
+        causal_count = predictions_csv[predictions_csv["HMDD_Class"] == True].shape[0]
+        population_size = len(predictions_csv.index)
+
+        avg_pred_CM = confusion_matrix(predictions_csv["HMDD_Class"], predictions["Class_Prediction"])
+        avg_pred_p_val =  hypergeom.sf(CM[1][1]-1, population_size, causal_count, CM[1][1]+CM[0][1])
+
+        avg_pred_auc, avg_pred_auc_cov = delong_roc_variance(
+            predictions_csv["HMDD_Class"], 
+            predictions_csv["Average_Prob"]
+        )
+
+        alpha = .95
+        auc_std = np.sqrt(avg_pred_auc_cov)
+        lower_upper_q = np.abs(np.array([0, 1]) - (1 - alpha) / 2)
+        avg_pred_CI = stats.norm.ppf(
+            lower_upper_q,
+            loc=avg_pred_auc,
+            scale=auc_std)
+
+        #AVERAGE SPLIT METRICS
         CMs = np.array(CMs)
         feature_importances_list = np.array(feature_importances_list)
 
@@ -212,27 +221,33 @@ def main(args):
         feat_imps_std = np.std(feature_importances_list, axis = 0)
         p_val_std = np.std(p_values)
 
-        median_auc = np.median(rocaucs)
-        random_state_for_median_auc = random_states[rocaucs.index(median_auc)]
+        # median_auc = np.median(rocaucs)
+        # random_state_for_median_auc = random_states[rocaucs.index(median_auc)]
 
         mir_false_pos_ratio = {}
         for mir in mir_num_false_pos_dict.keys():
-            mir_false_pos_ratio[mir] = mir_num_false_pos_dict[mir] / mir_num_test_dict[mir]
+            mir_false_pos_ratio[mir] = mir_num_false_pos_dict[mir] / predictions_dict[mir]["times_in_test"]
 
         results_dict = {
-            'auc': average_auc,
-            'auc_std': auc_std,
-            'CM': average_CM,
-            'CM STD':CM_std,
+            'avg_split_auc': average_auc,
+            'avg_split_auc_std': auc_std,
+            'avg_split_CM': average_CM,
+            'avg_split_CM_STD': CM_std,
+            # 'median_auc': median_auc,
+            # 'random_state_for_median_auc': random_state_for_median_auc,
+            'avg_split_p_val' :average_p_val,
+            'avg_split_p_val_std': p_val_std,
+            'avg_split_max_p_val': max(p_values),
+            'avg_split_min_p_val': min(p_values),
+            'avg_split_feat_imps': average_feature_importances,
+            'avg_split_feat_imps_std':feat_imps_std,
+            'avg_pred_auc': avg_pred_auc,
+            'avg_pred_CM': avg_pred_CM,
+            'avg_pred_p_val': avg_pred_p_val,
+            'avg_pred_auc_cov': avg_pred_auc_cov,
+            'avg_pred_CI': avg_pred_CI,
+            'threshold': optimal_cutoff, 
             'mir_false_pos_ratio': mir_false_pos_ratio,
-            'median_auc': median_auc,
-            'random_state_for_median_auc': random_state_for_median_auc,
-            'average_p_val' :average_p_val,
-            'p_val_std': p_val_std,
-            'max p_val': max(p_values),
-            'min p_val': min(p_values),
-            'feat_imps': average_feature_importances,
-            'feat_imps_std':feat_imps_std
         }
 
         print_results_dict(results_dict)
@@ -243,8 +258,8 @@ def main(args):
         with open(filepath, 'wb') as handle:
             pickle.dump(results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        predictions_csv = pd.DataFrame(predictions_csv)
         print(predictions_csv)
+
         if args.output_path != "None":
             predictions_csv.to_csv(args.output_path + "/" + args.run_identifier + "_predictions.csv")
         else:
@@ -263,9 +278,9 @@ def main(args):
             predictions['miRNAs'] = predictions["miRNAs"].apply(lambda x: re.sub('(-5p|-3p|.3p|.5p)$', '', x))
 
             predictions = predictions[predictions["miRNAs"].isin(disease_associated_miRs)]
-            plot_auc(predictions, auc_label = args.HMDD_disease_name, filename = args.run_identifier + "_ds_auc", save_path = save_path)
+            plot_auc(predictions, auc_label = args.run_identifier, filename = args.run_identifier + "_ds_auc", save_path = save_path)
         elif args.run_type == "graph_auc_all":
-            plot_auc(predictions, auc_label = args.HMDD_disease_name, filename = args.run_identifier + "_auc", save_path = save_path)
+            plot_auc(predictions, auc_label = args.run_identifier, filename = args.run_identifier + "_auc", save_path = save_path)
     elif args.run_type == "miRNA_data":
         pipeline(args, return_value = "miRNA_data")
     elif args.run_type == "source_to_target_network":
@@ -280,7 +295,7 @@ if __name__ == "__main__":
                         help='path to genie3, mrnet, mrnetb, aracne and clr networks OR \
                             path to miRNA_data (the influence and conservation features). If None,\
                             current directory will be used.')
-    parser.add_argument('--HMDD_disease_name', type=str,
+    parser.add_argument('--HMDD_disease_name',  nargs="+", 
                         help='the name of the disease in the HMDD disease dataset. Unfortunately, \
                         you will have to search this up yourself')
     parser.add_argument('--run_identifier', type=str,
@@ -301,48 +316,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-# python3 pathomir.py --output_path None \
-#                     --input_path disease_data/gastric/inferred_networks \
-#                     --HMDD_disease_name "Gastric Neoplasms" \
-#                     --run_identifier "gastric" \
-#                       --run_type miRNA_data 
-
-# python3 pathomir.py --output_path None \
-#                     --input_path None \
-#                     --HMDD_disease_name "Carcinoma, Hepatocellular" \
-#                     --run_identifier "hepato" \
-#                     --run_type all 
-
-# python3 pathomir.py --output_path None \
-#                     --input_path None \
-#                     --HMDD_disease_name "Alzheimer Disease" \
-#                     --run_identifier "alzheimers" \
-#                     --run_type all 
-
-# python3 pathomir.py --output_path None \
-#                     --input_path None \
-#                     --HMDD_disease_name "Breast Neoplasms" \
-#                     --run_identifier "breast" \
-#                     --run_type all 
-
-# python3 pathomir.py --output_path None \
-#                     --input_path None \
-#                     --HMDD_disease_name "Carcinoma, Hepatocellular" \
-#                     --run_identifier "hepato" \
-#                     --run_type graph_auc_ds
-
-
-# python3 pathomir.py --output_path None \
-#                     --input_path None \
-#                     --HMDD_disease_name "Gastric Neoplasms" \
-#                     --run_identifier "gastric" \
-#                     --use_pretrained_model True \
-#                     --run_type "all"
-
-                    
-
-# python3 pathomir.py --output_path None --input_path disease_data/gastric/inferred_networks --HMDD_disease_name "Gastric Neoplasms" --run_identifier "gastric" --run_type miRNA_data
-# python3 pathomir.py --output_path None --input_path disease_data/breast_cancer/inferred_networks --HMDD_disease_name "Breast Neoplasms" --run_identifier "breast_cancer" --run_type miRNA_data
-
-# python3 pathomir.py --output_path None --input_path None --HMDD_disease_name "Breast Neoplasms" --run_identifier "breast_cancer" --run_type all --use_pretrained_model True

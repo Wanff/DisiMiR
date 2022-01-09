@@ -61,25 +61,33 @@ class AdaBoostEnsembleModel:
         summed = np.sum(yhats, axis=0) / len(self.members)
 
         #y_pred[:,1] just gets the positive class according to the ada.classes_
-        return summed[:,1]
-
-# def make_ensemble(X_train, y_train):
-#     kf = KFold(n_splits=5)
-
-#     members = []
-#     npX = np.asarray(X_train)
-#     npY = np.asarray(y_train)
-#     for train_index, test_index in kf.split(npX):
-#         cv_x_train = npX[train_index]
-#         cv_y_train = npY[train_index]
-        
-#         ada = AdaBoostClassifier(random_state=None, n_estimators=1500)
-
-#         ada.fit(cv_x_train,cv_y_train.ravel())
-#         members.append(ada)
+        return summed
     
-#     ensemble = AdaBoostEnsembleModel(members)
-#     return ensemble
+    def feature_importances(self):
+        feature_importances = []
+        for model in self.members:
+            feature_importances.append(model.feature_importances_)
+
+        return np.mean(feature_importances, axis = 0)
+
+
+def make_ensemble(X_train, y_train):
+    kf = KFold(n_splits=5)
+
+    members = []
+    npX = np.asarray(X_train)
+    npY = np.asarray(y_train)
+    for train_index, test_index in kf.split(npX):
+        cv_x_train = npX[train_index]
+        cv_y_train = npY[train_index]
+        
+        ada = AdaBoostClassifier(random_state=None, n_estimators=1500)
+
+        ada.fit(cv_x_train,cv_y_train.ravel())
+        members.append(ada)
+    
+    ensemble = AdaBoostEnsembleModel(members)
+    return ensemble
 
 def plot_auc(predictions, auc_label = "Disease", filename = 'auc', save_path = "disease_data/"):
     """
@@ -115,15 +123,15 @@ def plot_auc(predictions, auc_label = "Disease", filename = 'auc', save_path = "
 
 def predict_disease_causality(X_train, X_test, y_train, y_test, use_pretrained_model = False, miRNA_data = None, return_value = None):
     if use_pretrained_model is False:
+        # model = make_ensemble(X_train, y_train)
         model = AdaBoostClassifier(random_state=None, n_estimators=1500)
         model.fit(np.asarray(X_train), np.asarray(y_train).ravel())
 
         y_pred = model.predict_proba(X_test)[:,1]
     else:
-        # model = pd.read_pickle('cancer_pretrained_model.pickle')
+        model = pd.read_pickle('cancer_aggregate_model')
 
-        # y_pred = model.predict_proba(X_test)
-        print("fix")
+        y_pred = model.predict_proba(X_test)[:,1]
 
     if return_value == "auc":
         rocauc = roc_auc_score(y_test, y_pred)
@@ -159,7 +167,9 @@ def predict_disease_causality(X_train, X_test, y_train, y_test, use_pretrained_m
 
         p_value = hypergeom.sf(CM[1][1]-1, population_size, causal_count, CM[1][1]+CM[0][1])
 
+        # feature_importances = model.feature_importances()
         feature_importances = model.feature_importances_
+
 
         false_positives = []
         true_positives = []
@@ -173,9 +183,9 @@ def predict_disease_causality(X_train, X_test, y_train, y_test, use_pretrained_m
             
             predictions.append((pred, actual[0], actual[1])) #prediction, mir name, label
 
-        positives_in_test = true_positives + false_positives
+        # positives_in_test = true_positives + false_positives
 
-        return rocauc, CM, p_value, feature_importances, false_positives, positives_in_test, predictions, optimal_cutoff
+        return rocauc, CM, p_value, feature_importances, false_positives, predictions, optimal_cutoff
 
 def find_threshold_least_errors(y_test, y_pred, false_pos_weight = 1, false_neg_weight = 1):
     __, __, thresholds = roc_curve(y_test, y_pred)

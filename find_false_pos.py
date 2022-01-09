@@ -89,7 +89,7 @@ def find_false_positives(args):
     
     key_to_miRNA_name_dict = pipeline(args)
 
-    false_positives = [k for k,v in results_dict['mir_false_pos_ratio'].items() if v >= 0.7]
+    false_positives = [k for k,v in results_dict['mir_false_pos_ratio'].items() if v >= 0.5]
     
     print("NUM OF FALSE_POSITIVES: " + str(len(false_positives)))
 
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     parser.add_argument('--run_identifier', type=str,
                         help='all files will be saved and read as run_identifier_filename. e.g. \
                             gastric_results_dict.pickle, gastric_miRNA_data.csv, etc. ' )
-    parser.add_argument('--HMDD_disease_name', type=str,
+    parser.add_argument('--HMDD_disease_name', nargs="+",
                         help='the name of the disease in the HMDD disease dataset. Unfortunately, \
                         you will have to search this up yourself')
     parser.add_argument('--email', type=str,default = None,
@@ -187,16 +187,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     find_false_positives(args)
-
- 
-        
-
-
-# python3 find_false_pos.py --output_path None \
-#                          --input_path disease_data/alzheimers/inferred_networks \
-#                          --path_to_results_dict None \
-#                          --run_identifier "alzheimers" \
-#                          --run_type "false_positives" \
-#                          --HMDD_disease_name "Alzheimer Disease" \
-#                          --email "kevinrowang@gmail.com" \
-#                          --disease_pubmed_query "Alzheimer Disease" 
