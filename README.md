@@ -21,17 +21,40 @@ pip install requirements.txt
   <img src="https://user-images.githubusercontent.com/50050060/148706718-474b4860-0a7b-443c-82d4-250e521328d8.png" height="540">
 </p>
 
-PathomiR's workflow is a bit convoluted, mainly due to the network inference part.
+PathomiR's workflow is a bit convoluted, mainly due to the network inference part. The consensus-based network inference algorithm infers the regulatory network from the miRNA expression data. This network is used to calculate whole-network and disease-specific coverage. These two characteristics are aggregated with miRNA conservation data from miRbase, and miRNA causality information from HMDD, to create a training dataset for an AdaBoost model, which predicts disease-causality.
 
 ### Network Inference
 Since each expression dataset usually needs its own individual preprocessing, the network inference part is very manual. 
 
-Open RStudio and copy network_inference_util.R into a .R file. Load your dataset into R (whether through GEO or manaully (ie drag-dropping a .csv file into Rstudio)). 
+Open RStudio and copy network_inference_util.R into a .R file. Load your dataset into R (whether through GEO or manaully (ie drag-dropping a .csv file into Rstudio). 
 
 Follow the workflow outlined in network_inference_util.R. If a function or a line is not prefaced by "For SomeDisease" then you should run that line for all datasets. The general flow is to load the dataset in, do any preprocessing, then infer and save the 5 different networks. 
 
 ### PathomiR
 Now that you have your networks, most of the manual work has been done. The only other thing you'll need to do is to go to the <a href= "https://www.cuilab.cn/hmdd" target = "_blank">HMDD Dataset</a> and find the name(s) of your disease in the dataset. Generally, the more names you find that fit your disease's description, the better, because you will have more positive classes in your training dataset. 
+
+#### PathomiR Parameters
+**output_path**: path to save all outputs of the run
+
+**input_path**: path to inputs of the run. Either the inferred networks or miRNA_data
+
+**HMDD_disease_name**: list of disease names in HMDD
+
+**run_identifier**: this String will be prefixed in front of all outputs of the run i.e. disease_miRNA_data.csv
+
+**run_type**: the type of run that PathomiR will do:
+* metrics_and_predictions
+  * saves metrics (p-value, confusion matrix, AUC, feature importances) to results_dict.pickle and average predictions across 100 random splits to predictions.csv
+* miRNA_data
+  * creates miRNA_data.csv (all the features used to train the AdaBoost classifier)
+* source_to_target_network
+  * reformats the consensus-based network into source to target format (for Cytoscape visualization) and saves source_to_target_network.csv 
+* graph_auc
+  * graphs AUC for all miRNAs
+* graph_auc_ds
+  * graphs AUC for only the disease-associated miRNAs 
+
+For all paths, if you input None, PathomiR will use the current directory. 
 
 #### Generate the training data
 ```
@@ -51,21 +74,23 @@ python3 pathomir.py --output_path path/to/results_dict.pickle + predictions.csv 
                     --run_type all 
 ```
 
-If your training data is bad, you can use the aggregate cancer model like this:
+If your training data fails to produce a good classifier you can use the aggregate cancer model like this:
 ```
 python3 pathomir.py --output_path path/to/results_dict.pickle + predictions.csv \
                     --input_path path/to/miRNA_data.csv \
                     --HMDD_disease_name "Disease Name 1" "Disease Name 2" \
                     --run_identifier "disease_name" \
                     --use_pretrained_model \
-                    --run_type all 
+                    --run_type metrics_and_predictions 
 ```
 
 ### Hypothesis Generation
+Most parameters for hypothesis generation are the same for the normal PathomiR run. Hypothesis generation will need access to the miRNA_data for the key_to_miRNA_dict (which maps the key in the graph object to miRNA name) and also the results_dict, which stores the false_positives from the 100 random splits. 
 
+The **email** parameter is the email that will be used to query the PubMED API and the **disease_pubmed_query** will be the query that will be searched on PubMED along with the false positive miRNAs. 
 ```
 python3 find_false_pos.py --output_path path/to/false_pos.pickle \
-                         --input_path path/to/inferred_networks \
+                         --input_path path/to/miRNA_data.csv \
                          --path_to_results_dict path/to/results_dict.pickle \
                          --run_identifier "disease_name" \
                          --run_type "false_positives" \
