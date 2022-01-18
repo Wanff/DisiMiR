@@ -48,6 +48,7 @@ alzheimers <- alzheimers[complete.cases(alzheimers), ]
 remove(Accessions)
 remove(accession_to_mirs)
 
+#remove miRNAs that have 0 variance
 remove_miRs_no_var <- function(disease_expres) {
   #preprocess
   t_disease_expres <- t(disease_expres)
@@ -59,6 +60,7 @@ remove_miRs_no_var <- function(disease_expres) {
   disease_expres <<- t(t_disease_expres)
 }
 
+#infer the networks
 save_inferred_networks <- function(disease_expres, filepath) {
   library(GENIE3)
   weightMat <<- GENIE3(disease_expres)

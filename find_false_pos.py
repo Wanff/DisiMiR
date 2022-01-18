@@ -166,8 +166,8 @@ if __name__ == "__main__":
     parser.add_argument('--output_path', type=str, default = None,
                         help='path to save false_pos.pickle. If None, current directory is used')
     parser.add_argument('--input_path', type=str, default="None",
-                        help='path to genie3, mrnet, mrnetb, aracne and clr networks OR \
-                            path to miRNA_data (the influence and conservation features). If None,\
+                        help='path to miRNA_data (the influence and conservation features) in order to \
+                            get key_to_miRNA_dict (maps the key in the graph object to miRNA name) If None,\
                             current directory will be used.')
     parser.add_argument('--path_to_results_dict', type=str,
                         help='path to results_dict (which has the mir_false_pos_ratios). If None,\

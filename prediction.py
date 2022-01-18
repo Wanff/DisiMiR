@@ -7,7 +7,7 @@ from sklearn.metrics import confusion_matrix
 import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, confusion_matrix, roc_curve
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 
 from matplotlib import pyplot as plt
 from scipy.stats import hypergeom
@@ -33,6 +33,20 @@ def load_train_test_split(miRNA_data = None, random_state = None, miRNA_data_pat
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=random_state, stratify=y)
 
     return X_train, X_test, y_train, y_test
+
+def stratified_random_split(miRNA_data = None, random_state = None, miRNA_data_path = None, num_splits = 3):
+    if miRNA_data_path is not None:
+        miRNA_data = pd.read_csv(miRNA_data_path)
+
+    X = miRNA_data[['Disease_Influence', 'Network_Influence', 'Conservation']]
+    y = miRNA_data[['Causality']]
+
+    skf = StratifiedKFold(n_splits=num_splits)
+
+    train_indices = [split[0] for split in list(skf.split(X, y))]
+    test_indices = [split[1] for split in list(skf.split(X, y))]
+    
+    return train_indices, test_indices, X, y
 
 class AdaBoostEnsembleModel:
     def __init__(self, members):
@@ -129,7 +143,7 @@ def predict_disease_causality(X_train, X_test, y_train, y_test, use_pretrained_m
 
         y_pred = model.predict_proba(X_test)[:,1]
     else:
-        model = pd.read_pickle('cancer_aggregate_model')
+        model = pd.read_pickle('cancer_aggregate_model.pickle')
 
         y_pred = model.predict_proba(X_test)[:,1]
 
@@ -148,7 +162,7 @@ def predict_disease_causality(X_train, X_test, y_train, y_test, use_pretrained_m
     
         return false_positives
     
-    elif return_value == "all":
+    elif return_value == "metrics_and_predictions":
         rocauc = roc_auc_score(y_test, y_pred)
 
         causal_count = miRNA_data['Causality'].sum()
