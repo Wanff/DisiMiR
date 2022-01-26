@@ -11,7 +11,7 @@ from sklearn.ensemble import AdaBoostClassifier
 import pickle
 from pathomir import print_results_dict
 from prediction import make_ensemble, predict_disease_causality, load_train_test_split, AdaBoostEnsembleModel
-from confidence_intervals import delong_roc_variance
+from confidence_intervals import delong_roc_variance, delong_significance_between_two_aucs
 import scipy.stats
 from scipy import stats
 
@@ -69,6 +69,20 @@ def test_aggregate_cancer_model(path_to_model, path_to_miRNA_datas = os.getcwd()
         print("AUC ON AGGREGATE DATASET: " + str(agg_rocauc))
         
         print("AUC ON ALZHEIMER'S DATASET: " + str(alz_rocauc))
+    
+    return alz_y_pred, y_alz
+
+def compare_alz_auc_to_agg_auc(path_to_model, path_to_miRNA_datas = os.getcwd(), path_to_alz_preds = os.getcwd()):
+    agg_alz_y_pred, y_alz = test_aggregate_cancer_model(path_to_model, path_to_miRNA_datas, logging = False)
+    print(np.array(y_alz))
+    print(agg_alz_y_pred)
+    alz_y_pred = pd.read_csv(path_to_alz_preds + "/" + "alzheimers" + "_predictions.csv")[['Average_Prob']]
+
+    z, p = delong_significance_between_two_aucs(agg_alz_y_pred, np.array(alz_y_pred), np.array(y_alz))
+    print("P-VALUE: " + str(p))
+    print("Z-SCORE: " + str(z))
+
+    return z, p
 
 #graph aucs for multiple diseases on same plot
 def plot_all_aucs(input_path, run_identifiers, HMDD_disease_names = None, ds = False, filename = "all_aucs", save_path = "disease_data", logging = True):
@@ -166,9 +180,11 @@ if __name__ == "__main__":
     #             HMDD_disease_names = ["Gastric Neoplasms", "Breast Neoplasms", "Carcinoma, Hepatocellular", "Alzheimer Disease"],
     #             ds = True, filename = "ds_aucs", save_path = os.getcwd())
 
-    create_aggregate_cancer_model(path_to_miRNA_datas = "results/adaboost_class_final")
-    test_aggregate_cancer_model(path_to_model = os.getcwd() + "/cancer_aggregate_model.pickle", path_to_miRNA_datas = "results/adaboost_class_final")
+    # create_aggregate_cancer_model(path_to_miRNA_datas = "results/adaboost_class_final")
+    # test_aggregate_cancer_model(path_to_model = os.getcwd() + "/cancer_aggregate_model.pickle", path_to_miRNA_datas = "results/adaboost_class_final")
     
+    compare_alz_auc_to_agg_auc(path_to_model = os.getcwd() + "/cancer_aggregate_model.pickle",  path_to_miRNA_datas = "results/adaboost_class_final", path_to_alz_preds="results/adaboost_class_final")
+
     # run_identifiers = ["gastric", "breast", "hepato", "alzheimers"]
     # for run_identifier in run_identifiers:
     #     results_dict = pd.read_pickle(run_identifier + "_results_dict.pickle")
