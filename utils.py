@@ -9,7 +9,7 @@ from scipy.stats import hypergeom
 from sklearn.ensemble import AdaBoostClassifier
 
 import pickle
-from pathomir import print_results_dict
+from disimir import print_results_dict
 from prediction import make_ensemble, predict_disease_causality, load_train_test_split, AdaBoostEnsembleModel
 from confidence_intervals import delong_roc_variance, delong_significance_between_two_aucs
 import scipy.stats

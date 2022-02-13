@@ -6,7 +6,7 @@ import argparse
 import os
 from tqdm import tqdm
 
-from pathomir import pipeline
+from disimir import pipeline
 
 #PUBMED
 def search_medline(query, email,**kwargs):
