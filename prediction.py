@@ -27,7 +27,7 @@ def load_train_test_split(miRNA_data = None, random_state = None, miRNA_data_pat
     if miRNA_data_path is not None:
         miRNA_data = pd.read_csv(miRNA_data_path)
 
-    X = miRNA_data[['Disease_Influence', 'Network_Influence', 'Conservation']]
+    X = miRNA_data[['Disease_Influence', 'Network_Influence', 'Conservation', 'Num_Targets']]
     y = miRNA_data[['Causality']]
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=random_state, stratify=y)
@@ -38,7 +38,7 @@ def stratified_random_split(miRNA_data = None, random_state = None, miRNA_data_p
     if miRNA_data_path is not None:
         miRNA_data = pd.read_csv(miRNA_data_path)
 
-    X = miRNA_data[['Disease_Influence', 'Network_Influence', 'Conservation']]
+    X = miRNA_data[['Disease_Influence', 'Network_Influence', 'Conservation', 'Num_Targets']]
     y = miRNA_data[['Causality']]
 
     skf = StratifiedKFold(n_splits=num_splits)

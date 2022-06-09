@@ -15,7 +15,7 @@ import os
 
 from consensus_network_inference import infer_consensus_based_network, process_networks, create_source_to_target_network
 from influence_inference import create_miRNA_graph
-from miRNA_databases import get_HMDD_causal_db, get_miRNA_conservation, get_HMDD_disease_associated_db
+from miRNA_databases import get_HMDD_causal_db, get_miRNA_conservation, get_HMDD_disease_associated_db, get_miRNA_targets
 from prediction import load_train_test_split, stratified_random_split, predict_disease_causality, plot_auc
   
 def create_miRNA_data(HMDD_disease_name, miRNA_graph, disspec_miRNA_graph, key_to_miRNA_name_dict):
@@ -24,14 +24,19 @@ def create_miRNA_data(HMDD_disease_name, miRNA_graph, disspec_miRNA_graph, key_t
     HMDD_causal_db = get_HMDD_causal_db()
 
     print("creating mirna information dataframe...")
-
-    conservation_score = get_miRNA_conservation(list(key_to_miRNA_name_dict.values()))
     
+    print("getting conservation information...")
+    conservation_score = get_miRNA_conservation(list(key_to_miRNA_name_dict.values()))
+
+    print("getting target information...")
+    miR_to_targets = get_miRNA_targets(list(key_to_miRNA_name_dict.values()))
+
     miRNAs = {
         'miRNA':[],
         'Disease_Influence':[],
         'Network_Influence':[],
         'Conservation':[],
+        'Num_Targets': [],
         'Causality':[],
     }
 
@@ -53,6 +58,8 @@ def create_miRNA_data(HMDD_disease_name, miRNA_graph, disspec_miRNA_graph, key_t
 
         no_p_mir = re.sub('(-5p|-3p|.3p|.5p)$', '', mir)
         miRNAs['Conservation'].append(conservation_score[no_p_mir])
+
+        miRNAs['Num_Targets'].append(miR_to_targets[mir])
 
         is_mir_causal = 'yes' in HMDD_causal_db[HMDD_causal_db['disease'].isin(HMDD_disease_name)].loc[(HMDD_causal_db['mir'] == no_p_mir),:].causality.unique()
         # is_mir_causal = 'yes' in HMDD_causal_db.loc[(HMDD_causal_db['mir'] == no_p_mir) & (HMDD_causal_db['disease'] in HMDD_disease_name), :].causality.unique()
@@ -86,7 +93,6 @@ def pipeline(args, random_state = None, split = None, return_value = None):
         consensus_based_network = pd.DataFrame(data = np.where(consensus_based_network < .7, 0, consensus_based_network), index = columns, columns = columns)
         
         miRNA_graph, disspec_miRNA_graph, key_to_miRNA_name_dict = create_miRNA_graph(args.HMDD_disease_name, network = consensus_based_network)
-        
         miRNA_data = create_miRNA_data(args.HMDD_disease_name, miRNA_graph, disspec_miRNA_graph, key_to_miRNA_name_dict)
         miRNA_data = pd.DataFrame(miRNA_data)
     else:
@@ -114,8 +120,8 @@ def pipeline(args, random_state = None, split = None, return_value = None):
         else:
             miRNA_data.to_csv(os.getcwd() + "/" + args.run_identifier + "_miRNA_data.csv")
         return miRNA_data
-    # if return_value == "key_to_miRNA_name_dict":
-    #     return key_to_miRNA_name_dict
+    if return_value == "key_to_miRNA_name_dict":
+        return key_to_miRNA_name_dict
     # elif return_value == "train_test_split":
     #     X_train, X_test, y_train, y_test = load_train_test_split(miRNA_data, random_state = random_state)
 
@@ -147,7 +153,7 @@ def main(args):
     if args.run_type == "metrics_and_predictions":
         results_dict = {}
 
-        random_states = np.random.randint(1000, size = (1))
+        random_states = np.random.randint(1000, size = (100))
 
         rocaucs = []
         CMs = []
@@ -331,10 +337,35 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+"""
+python3 disimir.py --output_path results/adaboost_seq_sim_and_targets \
+                    --input_path disease_data/breast_cancer/inferred_networks \
+                    --HMDD_disease_name "Breast Neoplasms" \
+                    --run_identifier "breast_cancer" \
+                    --run_type miRNA_data 
 
-# python3 pathomir.py --output_path disease_data/tuber \
-#                     --input_path disease_data/tuber \
-#                     --HMDD_disease_name "Tuberculosis" \
-#                     --run_identifier "tuber" \
-#                     --use_pretrained_model \
-#                     --run_type metrics_and_predictions 
+python3 disimir.py --output_path results/adaboost_seq_sim_and_targets/breast_cancer \
+                    --input_path results/adaboost_seq_sim_and_targets/breast_cancer \
+                    --HMDD_disease_name "Breast Neoplasms" \
+                    --run_identifier "breast_cancer" \
+                    --run_type metrics_and_predictions 
+
+
+python3 disimir.py --output_path results/adaboost_seq_sim_and_targets/hepato \
+                    --input_path results/adaboost_seq_sim_and_targets/hepato \
+                    --HMDD_disease_name "Carcinoma, Hepatocellular" \
+                    --run_identifier "hepato" \
+                    --run_type metrics_and_predictions 
+
+python3 disimir.py --output_path results/adaboost_seq_sim_and_targets/gastric \
+                    --input_path results/adaboost_seq_sim_and_targets/gastric \
+                    --HMDD_disease_name "Gastric Neoplasms" \
+                    --run_identifier "gastric" \
+                    --run_type metrics_and_predictions 
+
+python3 disimir.py --output_path results/adaboost_seq_sim_and_targets/alzheimers \
+                    --input_path results/adaboost_seq_sim_and_targets/alzheimers \
+                    --HMDD_disease_name "Alzheimer Disease" \
+                    --run_identifier "alzheimers" \
+                    --run_type metrics_and_predictions                 
+"""

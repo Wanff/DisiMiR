@@ -9,3 +9,4 @@ aggregate_model.py
 cancer_aggregate_model
 cancer_pretrained_model.pickle
 notes.txt
+/miRNA_databases/TargetScan_predicted_hsa_targets.txt
