@@ -14,7 +14,7 @@ from prediction import make_ensemble, predict_disease_causality, load_train_test
 from confidence_intervals import delong_roc_variance, delong_significance_between_two_aucs
 import scipy.stats
 from scipy import stats
-from find_false_pos import print_false_pos_summary_statistics
+from find_false_pos import print_false_pos_summary_statistics, get_pubmed_papers
 #Miscellaneous functions used in the paper
 
 def create_aggregate_cancer_dataset(path_to_miRNA_datas = os.getcwd()):
@@ -264,12 +264,17 @@ def plot_all_aucs(input_path, run_identifiers, HMDD_disease_names = None, ds = F
     plt.ylim([0, 1])
     plt.ylabel('True Positive Rate')
     plt.xlabel('False Positive Rate')
-
+    if ds: 
+        plt.title("Disease-Causal vs. Disease-Associated")
+    else:
+        plt.title("Disease-Causal vs. Non-Causal")
+         
     if save_path is not None:
         plt.savefig(save_path + "/" + filename+'.png', bbox_inches='tight')
 
     plt.show()
- 
+
+
 def get_num_irrelevant_mirs(input_path, run_identifiers, HMDD_disease_names = None):
     for i, run_identifier in enumerate(run_identifiers):
         predictions = pd.read_csv(input_path + "/" + run_identifier + "/" + run_identifier + "_predictions.csv")
@@ -283,7 +288,7 @@ def get_num_irrelevant_mirs(input_path, run_identifiers, HMDD_disease_names = No
 
 
 if __name__ == "__main__":
-    # plot_all_aucs("results/adaboost_seq_sim_and_targets", ["gastric", "breast_cancer", "hepato", "alzheimers"], filename = "avg_pred_aucs", save_path = "results/adaboost_seq_sim_and_targets")
+    plot_all_aucs("results/adaboost_seq_sim_and_targets", ["gastric", "breast_cancer", "hepato", "alzheimers"], filename = "avg_pred_aucs", save_path = "results/adaboost_seq_sim_and_targets")
 
     # plot_all_aucs("results/adaboost_seq_sim_and_targets", ["gastric", "breast_cancer", "hepato", "alzheimers"], 
     #             HMDD_disease_names = ["Gastric Neoplasms", "Breast Neoplasms", "Carcinoma, Hepatocellular", "Alzheimer Disease"],
@@ -295,7 +300,7 @@ if __name__ == "__main__":
     # create_aggregate_cancer_model(path_to_miRNA_datas = "results/adaboost_seq_sim_and_targets")
     # test_aggregate_cancer_model(path_to_model = os.getcwd() + "/cancer_aggregate_model.pickle", path_to_miRNA_datas = "results/adaboost_seq_sim_and_targets")
     
-    compare_alz_auc_to_agg_auc(path_to_model = os.getcwd() + "/cancer_aggregate_model.pickle",  path_to_miRNA_datas = "results/adaboost_seq_sim_and_targets", path_to_alz_preds="results/adaboost_seq_sim_and_targets")
+    # compare_alz_auc_to_agg_auc(path_to_model = os.getcwd() + "/cancer_aggregate_model.pickle",  path_to_miRNA_datas = "results/adaboost_seq_sim_and_targets", path_to_alz_preds="results/adaboost_seq_sim_and_targets")
     # compare_alz_auc_to_agg_auc(path_to_model = "results/adaboost_class_final/cancer_aggregate_model.pickle",  path_to_miRNA_datas = "results/adaboost_class_final", path_to_alz_preds="results/adaboost_class_final")
 
     # run_identifiers = ["alzheimers", 'breast_cancer','hepato','gastric']
@@ -304,6 +309,41 @@ if __name__ == "__main__":
     #     print(run_identifier)
     #     print_false_pos_summary_statistics(false_pos_df, print_papers = False)
     #     print("\n")
+    
+    import requests
+    # from bs4 import BeautifulSoup
+    
+    # run_identifiers = ["alzheimers", 'breast_cancer','hepato','gastric']
+    # for run_identifier in run_identifiers:
+    #     false_pos_df = pd.read_csv("results/adaboost_seq_sim_and_targets/" + run_identifier + "/" + run_identifier +"_false_pos.csv")
+    #     print(run_identifier)
+        # for i, manual_check in zip(false_pos_df.index, list(false_pos_df["Manual Check"])):
+        #     pmids = str(manual_check)
+            
+        #     if pmids == 'nan':
+        #         continue
+            
+        #     print(i)
+        #     queries = [int(float(pmid)) for pmid in pmids.split(",")]
+        #     print(queries)
+        #     for q in queries:
+        #         res = requests.get(f"https://pubmed.ncbi.nlm.nih.gov/{q}/")
+                                
+        #         if res.status_code == 200:
+        #             soup = BeautifulSoup(res.content, 'html.parser')
+
+        #             t = re.sub("(\n+)", "",soup.h1.text)
+        #             print(re.sub("(^\s+)", "", t)) 
+                    
+        #         # papers = get_pubmed_papers(q, "kevn.wanf@gmail.com")
+        #         # print(papers)
+        #         # for paper in papers:
+        #         #     print(paper['abstract'])
+
+        # print_false_pos_summary_statistics(false_pos_df)       
+        # print("\n")
+            
+    
     
     # for dis in ["breast_cancer", "gastric", "hepato","alzheimers"]:
     #     filepath1 = "results/adaboost_seq_sim_and_targets" + "/" + dis + "/" + dis + "_predictions.csv"

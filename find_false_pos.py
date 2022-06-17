@@ -61,11 +61,12 @@ def get_pubmed_papers(query, email):
         return "no_papers_about_disease"
         
     pubmed_papers = []
+    print(rec_handler['IdList'])
     for rec_id in rec_handler['IdList']:
         rec = fetch_rec(rec_id, rec_handler)
         rec_file = StringIO(rec)
         medline_rec = Medline.read(rec_file)
-
+        print(medline_rec)
         paper = {}
         if 'AB' in medline_rec:
             paper['abstract'] = medline_rec['AB']
@@ -128,7 +129,7 @@ def find_false_positives(args):
             print(str(paper[0]) + ": " + paper[1])
         print("\n")
     
-    false_pos_df = pd.DataFrame(false_pos_data, columns = ['miR', "Pathogenicity", 'num_papers_returned', 'Causal_Papers', "Non_Causal_Papers"])
+    false_pos_df = pd.DataFrame(false_pos_data, columns = ['miRNAs', "Pathogenicity", 'num_papers_returned', 'Causal_Papers', "Non_Causal_Papers"])
 
     print_false_pos_summary_statistics(false_pos_df)
 

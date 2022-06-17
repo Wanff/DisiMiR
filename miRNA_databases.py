@@ -91,7 +91,7 @@ def get_miRNA_targets(miRNA_names, path = "miRNA_databases/TargetScan_predicted_
 
     #removes all miRs that end in .1 or .2 and adds their targets to mir w/o .1 or .2
     for mir in list(target_counts.keys()):
-        if ".1" in mir or ".2" in mir:
+        if mir.endswith(".1") or mir.endswith(".2"):
             edited_mir = mir[:-2]
 
             if edited_mir in target_counts.keys(): #if edited_mir already exists, just add the .2 one to it
